@@ -125,18 +125,18 @@
 
   <script>
     const TICKER_MAP = {
-      "Meta Platforms": "META",
-      "Instagram": "META",
-      "WhatsApp": "META",
-      "Google": "GOOGL",
-      "YouTube": "GOOGL",
-      "Microsoft": "MSFT",
-      "Snap": "SNAP",
-      "Pinterest": "PINS",
-      "Amazon": "AMZN",
-      "Spotify": "SPOT",
-      "Duolingo": "DUOL",
-      "Robinhood": "HOOD",
+      "Meta Platforms": "META:NASDAQ",
+      "Instagram": "META:NASDAQ",
+      "WhatsApp": "META:NASDAQ",
+      "Google": "GOOGL:NASDAQ",
+      "YouTube": "GOOGL:NASDAQ",
+      "Microsoft": "MSFT:NASDAQ",
+      "Snap": "SNAP:NYSE",
+      "Pinterest": "PINS:NYSE",
+      "Amazon": "AMZN:NASDAQ",
+      "Spotify": "SPOT:NYSE",
+      "Duolingo": "DUOL:NASDAQ",
+      "Robinhood": "HOOD:NASDAQ",
       "OpenAI": "PRIVATE",
       "ByteDance": "PRIVATE",
       "TikTok": "PRIVATE"
@@ -237,9 +237,12 @@
           if (ticker === "PRIVATE") {
             tickerBadge = `<span class="badge badge-private">Private</span>`;
           } else if (ticker) {
-            tickerBadge = `<span class="badge badge-ticker">${ticker}</span>`;
+            // Split out the clean symbol (e.g. "META") for the badge label
+            const displaySymbol = ticker.split(":")[0];
+            tickerBadge = `<span class="badge badge-ticker">${displaySymbol}</span>`;
             actionLink = `<a href="https://www.google.com/finance/quote/${ticker}" target="_blank" style="color: #38bdf8; text-decoration: none; font-size: 0.8rem;">Quote ↗</a>`;
           }
+
 
           // Optional region pills for world view
           let regionTags = "";
