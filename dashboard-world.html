@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>App Store Momentum Tracker</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      margin: 0;
+      padding: 16px;
+    }
+    .header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #334155;
+    }
+    h1 { margin: 0; font-size: 1.3rem; font-weight: 600; }
+    .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    select, button {
+      background: #1e293b;
+      color: #fff;
+      border: 1px solid #475569;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    .btn-refresh {
+      background: #2563eb;
+      border-color: #3b82f6;
+      font-weight: 500;
+    }
+    .btn-refresh:hover { background: #1d4ed8; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #1e293b;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    th, td {
+      padding: 10px 12px;
+      text-align: left;
+    }
+    th {
+      background: #334155;
+      font-weight: 600;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    tr:not(:last-child) { border-bottom: 1px solid #334155; }
+    tr:hover { background: #243248; }
+    .badge {
+      display: inline-block;
+      padding: 3px 7px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-decoration: none;
+    }
+    .badge-ticker { background: #059669; color: #fff; }
+    .badge-private { background: #475569; color: #94a3b8; }
+    .rank-col { width: 45px; font-weight: 700; color: #38bdf8; text-align: center; }
+    .app-icon { width: 32px; height: 32px; border-radius: 7px; vertical-align: middle; margin-right: 8px; }
+    .tag {
+      background: #334155;
+      color: #94a3b8;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      margin-right: 4px;
+    }
+
+    @media (max-width: 600px) {
+      body { padding: 10px; }
+      th:nth-child(3), td:nth-child(3) { display: none; }
+      th, td { padding: 8px; font-size: 0.8rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div>
+      <h1>iOS App Momentum Tracker</h1>
+      <small style="color: #94a3b8;">Surging apps mapped to equity catalysts</small>
+    </div>
+    <div class="controls">
+      <select id="countrySelect">
+        <option value="us">United States</option>
+        <option value="gb">United Kingdom</option>
+        <option value="world" selected>World (Aggregated)</option>
+      </select>
+      <select id="limitSelect">
+        <option value="25">Top 25</option>
+        <option value="50" selected>Top 50</option>
+      </select>
+      <button class="btn-refresh" id="refreshBtn" onclick="fetchCharts()">↻ Refresh</button>
+    </div>
+  </div>
+
+  <table id="chartTable">
+    <thead>
+      <tr>
+        <th class="rank-col">#</th>
+        <th>App Name</th>
+        <th>Publisher</th>
+        <th>Ticker</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody id="tableBody">
+      <tr><td colspan="5" style="text-align: center; color: #94a3b8;">Loading...</td></tr>
+    </tbody>
+  </table>
+
+  <script>
+    const TICKER_MAP = {
+      "Meta Platforms": "META",
+      "Instagram": "META",
+      "WhatsApp": "META",
+      "Google": "GOOGL",
+      "YouTube": "GOOGL",
+      "Microsoft": "MSFT",
+      "Snap": "SNAP",
+      "Pinterest": "PINS",
+      "Amazon": "AMZN",
+      "Spotify": "SPOT",
+      "Duolingo": "DUOL",
+      "Robinhood": "HOOD",
+      "OpenAI": "PRIVATE",
+      "ByteDance": "PRIVATE",
+      "TikTok": "PRIVATE"
+    };
+
+    function mapDeveloperToTicker(devName) {
+      for (const [key, ticker] of Object.entries(TICKER_MAP)) {
+        if (devName.toLowerCase().includes(key.toLowerCase())) return ticker;
+      }
+      return null;
+    }
+
+    async function fetchCountryFeed(country, limit) {
+      const url = `https://itunes.apple.com/${country}/rss/topfreeapplications/limit=${limit}/json`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      return data.feed.entry || [];
+    }
+
+    async function fetchCharts() {
+      const btn = document.getElementById('refreshBtn');
+      const tbody = document.getElementById('tableBody');
+      const selection = document.getElementById('countrySelect').value;
+      const limit = parseInt(document.getElementById('limitSelect').value, 10);
+
+      btn.disabled = true;
+      btn.innerText = "Fetching...";
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;">Querying Apple App Store...</td></tr>`;
+
+      try {
+        let entries = [];
+
+        if (selection === "world") {
+          // Poll 5 benchmark global markets in parallel
+          const markets = [
+            { code: "us", label: "US" },
+            { code: "gb", label: "UK" },
+            { code: "de", label: "DE" },
+            { code: "jp", label: "JP" },
+            { code: "ca", label: "CA" }
+          ];
+
+          const results = await Promise.allSettled(
+            markets.map(m => fetchCountryFeed(m.code, limit))
+          );
+
+          // Aggregate and score across countries
+          const appMap = new Map();
+
+          results.forEach((res, i) => {
+            if (res.status === "fulfilled") {
+              const countryCode = markets[i].label;
+              res.value.forEach((app, rankIndex) => {
+                const id = app.id?.attributes?.["im:id"] || app["im:name"]?.label;
+                const score = (limit - rankIndex); // Higher score for top positions
+
+                if (!appMap.has(id)) {
+                  appMap.set(id, {
+                    raw: app,
+                    totalScore: score,
+                    regions: [countryCode]
+                  });
+                } else {
+                  const existing = appMap.get(id);
+                  existing.totalScore += score;
+                  if (!existing.regions.includes(countryCode)) {
+                    existing.regions.push(countryCode);
+                  }
+                }
+              });
+            }
+          });
+
+          // Sort descending by combined popularity score
+          entries = Array.from(appMap.values())
+            .sort((a, b) => b.totalScore - a.totalScore)
+            .slice(0, limit);
+
+        } else {
+          const rawEntries = await fetchCountryFeed(selection, limit);
+          entries = rawEntries.map(e => ({ raw: e, totalScore: null, regions: [] }));
+        }
+
+        let rows = "";
+        entries.forEach((item, index) => {
+          const rank = index + 1;
+          const app = item.raw;
+          const name = app["im:name"]?.label || "Unknown";
+          const dev = app["im:artist"]?.label || "Unknown";
+          const icons = app["im:image"] || [];
+          const icon = icons.length > 0 ? icons[icons.length - 1].label : "";
+          const ticker = mapDeveloperToTicker(dev) || mapDeveloperToTicker(name);
+
+          let tickerBadge = `<span style="color:#64748b; font-size:0.75rem;">—</span>`;
+          let actionLink = `—`;
+
+          if (ticker === "PRIVATE") {
+            tickerBadge = `<span class="badge badge-private">Private</span>`;
+          } else if (ticker) {
+            tickerBadge = `<span class="badge badge-ticker">${ticker}</span>`;
+            actionLink = `<a href="https://finance.yahoo.com/quote/${ticker}" target="_blank" style="color: #38bdf8; text-decoration: none; font-size: 0.8rem;">Quote ↗</a>`;
+          }
+
+          // Optional region pills for world view
+          let regionTags = "";
+          if (item.regions && item.regions.length > 0) {
+            regionTags = `<div style="margin-top: 4px;">` + 
+              item.regions.map(r => `<span class="tag">${r}</span>`).join("") + 
+              `</div>`;
+          }
+
+          rows += `
+            <tr>
+              <td class="rank-col">${rank}</td>
+              <td>
+                <img src="${icon}" class="app-icon" alt=""/>
+                <strong>${name}</strong>
+                ${regionTags}
+              </td>
+              <td style="color:#cbd5e1;">${dev}</td>
+              <td>${tickerBadge}</td>
+              <td>${actionLink}</td>
+            </tr>
+          `;
+        });
+
+        tbody.innerHTML = rows;
+      } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="5" style="color:#f87171; text-align:center;">Failed to pull charts: ${err.message}.</td></tr>`;
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "↻ Refresh";
+      }
+    }
+
+    window.onload = fetchCharts;
+  </script>
+</body>
+</html>
